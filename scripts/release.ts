@@ -1,7 +1,7 @@
 import { resolve } from 'path'
 import * as process from 'process'
 import { promises as fs } from 'fs'
-import { execa } from 'execa'
+import { execa } from 'execa' // child_process  包装器
 import type { Project } from 'find-packages'
 import findPkgs from 'find-packages'
 import prompt from 'prompts'
@@ -26,22 +26,30 @@ const checkPublishError = (str: string) => {
 const resolvePkgs = (pkgs: Project[]): Pkg[] => {
   return pkgs
     .filter(item => item.dir !== process.cwd())
-    .map(pkg => ({
-      dir: pkg.dir,
-      name: pkg.manifest.name,
-      packageJson: resolve(pkg.dir, 'package.json'),
-    } as Pkg))
+    .map(
+      pkg =>
+        ({
+          dir: pkg.dir,
+          name: pkg.manifest.name,
+          packageJson: resolve(pkg.dir, 'package.json'),
+        } as Pkg),
+    )
 }
 
 const generateVersionFile = async(version: string, cwd: string) => {
   const versionDir = resolve(cwd, 'src')
-  const existDir = await fs.stat(versionDir).then(stat => stat.isDirectory()).catch(() => false)
+  const existDir = await fs
+    .stat(versionDir)
+    .then(stat => stat.isDirectory())
+    .catch(() => false)
   if (existDir) {
     const versionFile = resolve(cwd, 'src/version.ts')
     // 判断文件是否存在，存在删除，重新创建
-    const exists = await fs.stat(versionFile).then(stat => stat.isFile()).catch(() => false)
-    if (exists)
-      await fs.unlink(versionFile)
+    const exists = await fs
+      .stat(versionFile)
+      .then(stat => stat.isFile())
+      .catch(() => false)
+    if (exists) await fs.unlink(versionFile)
     await fs.writeFile(versionFile, `export default '${version}'\n`)
   }
 }
@@ -108,7 +116,7 @@ const main = async() => {
       ],
     },
     {
-      type: prev => preIncludes.includes(prev) ? 'select' : null,
+      type: prev => (preIncludes.includes(prev) ? 'select' : null),
       name: 'releaseType',
       message: 'please select pre release type',
       choices: [
@@ -141,7 +149,9 @@ const main = async() => {
   try {
     console.log(chalk.magenta('test ...'))
     // multi test
-    await Promise.all(selectPkgs.map(pkg => execa('pnpm', ['run', 'test'], { cwd: pkg.dir })))
+    await Promise.all(
+      selectPkgs.map(pkg => execa('pnpm', ['run', 'test'], { cwd: pkg.dir })),
+    )
     console.log(chalk.green('test success'))
   }
   catch (e: any) {
@@ -153,7 +163,11 @@ const main = async() => {
   // build dist
   try {
     console.log(chalk.magenta('build ...'))
-    await Promise.all(selectPkgs.map(selectPkg => execa('pnpm', ['run', 'build'], { cwd: selectPkg.dir })))
+    await Promise.all(
+      selectPkgs.map(selectPkg =>
+        execa('pnpm', ['run', 'build'], { cwd: selectPkg.dir }),
+      ),
+    )
     console.log(chalk.green('build success'))
   }
   catch (e: any) {
@@ -226,7 +240,13 @@ const main = async() => {
     }
     try {
       console.log(chalk.magenta('add tag ...'))
-      await execa('git', ['tag', '-a', tagVersion, '-m', `release: v${tagVersion}`])
+      await execa('git', [
+        'tag',
+        '-a',
+        tagVersion,
+        '-m',
+        `release: v${tagVersion}`,
+      ])
       await execa('git', ['push', 'origin', tagVersion])
       console.log(chalk.green('add tag success'))
       commit = `release: v${tagVersion}`
@@ -242,15 +262,25 @@ const main = async() => {
   try {
     console.log(chalk.magenta('generate changelog ...'))
     for (const selectPkg of selectPkgs) {
-      await execa('conventional-changelog', [
-        '-i', resolve(selectPkg.dir, 'CHANGELOG.md'),
-        '-s', '-r', '0',
-        '-p', 'angular',
-        '-k', resolve(selectPkg.dir, 'package.json'),
-        '--commit-path', selectPkg.dir],
-      {
-        cwd: process.cwd(),
-      })
+      await execa(
+        'conventional-changelog',
+        [
+          '-i',
+          resolve(selectPkg.dir, 'CHANGELOG.md'),
+          '-s',
+          '-r',
+          '0',
+          '-p',
+          'angular',
+          '-k',
+          resolve(selectPkg.dir, 'package.json'),
+          '--commit-path',
+          selectPkg.dir,
+        ],
+        {
+          cwd: process.cwd(),
+        },
+      )
     }
     console.log(chalk.green('generate changelog success'))
   }
@@ -285,7 +315,9 @@ const main = async() => {
     args.push('public')
     args.push('--filter')
     args.push('./packages/**')
-    const info = await execa('pnpm', ['publish', '--no-git-checks', ...args], { cwd: process.cwd() })
+    const info = await execa('pnpm', ['publish', '--no-git-checks', ...args], {
+      cwd: process.cwd(),
+    })
     if (info.stderr && checkPublishError(info.stderr))
       throw new Error(info.stderr)
     console.log(chalk.green('publish success'))
